@@ -9,14 +9,27 @@
     <view class="input-group">
       <text class="label">出生日期：</text>
       <view class="date-time-picker">
-        <!-- 精确到 年-月-日 时:分 的选择器 -->
-        <picker mode="datetime" value="{{birthDateTime}}" bindchange="onDateTimeChange">
-          <view class="picker-display">{{birthDateTime || '请选择出生日期与时间'}}</view>
+        <!-- 日期选择器 -->
+        <picker mode="multiSelector" value="{{selectedDate}}" range="{{[yearOptions, monthOptions, dayOptions]}}" bindchange="onDateChange">
+          <view class="picker-display">{{birthDate || '请选择出生日期'}}</view>
+        </picker>
+      </view>
+      <text class="label">出生时间：</text>
+      <view class="time-picker">
+        <!-- 时间选择器 -->
+        <picker mode="selector" range="{{timeOptions}}" value="{{birthTimeIndex}}" bindchange="onTimeChange">
+          <view class="picker-display">{{birthTime || '请选择出生时辰'}}</view>
         </picker>
       </view>
       <view class="calendar-switch">
-        <switch checked="{{isLunar}}" bindchange="onCalendarChange"/>
-        <text class="switch-label">{{isLunar ? '农历' : '公历'}}</text>
+        <radio-group class="calendar-radio" bindchange="onCalendarChange">
+          <label class="radio-label">
+            <radio value="false" checked="{{!isLunar}}"/>公历
+          </label>
+          <label class="radio-label">
+            <radio value="true" checked="{{isLunar}}"/>农历
+          </label>
+        </radio-group>
       </view>
     </view>
 

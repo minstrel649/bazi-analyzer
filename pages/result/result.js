@@ -1,7 +1,10 @@
 // pages/result/result.js
+const { Solar, Lunar } = require('lunar-javascript');
+
 Page({
   data: {
     baziResult: '',
+    userInputBazi: '',
     characterTags: [],
     wuxingAdvice: [],
     wuxingData: {} // 五行数据，用于绘制图表
@@ -13,33 +16,53 @@ Page({
   },
 
   calculateBazi: function(params) {
-    // 调用云函数 calcBazi
-    wx.cloud.callFunction({
-      name: 'calcBazi',
-      data: params,
-      success: (res) => {
-        const result = res.result;
-        this.setData({
-          baziResult: result.bazi,
-          characterTags: result.tags,
-          wuxingAdvice: result.advice,
-          wuxingData: result.wuxing
-        });
-        this.drawWuxingChart(result.wuxing);
-      },
-      fail: (err) => {
-        console.error('云函数调用失败', err);
-        wx.showToast({
-          title: '计算失败，请重试',
-          icon: 'none'
-        });
+    try {
+      // 显示用户输入
+      const timeStr = params.birthTime === '未知' ? '时辰未知' : `${params.birthTime}时`;
+      const calendarStr = params.isLunar ? '农历' : '公历';
+      const userInput = `${params.birthDate} ${timeStr} ${calendarStr}`;
+      this.setData({ userInputBazi: userInput });
+
+      let solar, lunar;
+      if (params.isLunar) {
+        // 如果是农历，创建 Lunar 对象
+        const date = new Date(params.birthDateTime);
+        lunar = Lunar.fromDate(date);
+        solar = lunar.getSolar();
+      } else {
+        // 公历
+        const date = new Date(params.birthDateTime);
+        solar = Solar.fromDate(date);
+        lunar = solar.getLunar();
       }
-    });
+      const bazi = lunar.getEightChar();
+      const baziStr = `${bazi.getYear()}年 ${bazi.getMonth()}月 ${bazi.getDay()}日 ${bazi.getTime()}时`;
+
+      // 计算五行
+      const wuxing = this.calculateWuxing(bazi);
+      // 生成标签和建议
+      const tags = this.generateTags(bazi, params.gender);
+      const advice = this.generateAdvice(wuxing);
+
+      this.setData({
+        baziResult: baziStr,
+        characterTags: tags,
+        wuxingAdvice: advice,
+        wuxingData: wuxing
+      });
+      this.drawWuxingChart(wuxing);
+    } catch (err) {
+      console.error('计算失败', err);
+      wx.showToast({
+        title: '计算失败，请重试',
+        icon: 'none'
+      });
+    }
   },
 
   drawWuxingChart: function(wuxingData) {
     // 使用 canvas 绘制五行环形图
-    const ctx = wx.createCanvasContext('wuxingChart', this);
+    const ctx = wx.createCanvasContext('wuxingChart');
     const centerX = 150;
     const centerY = 100;
     const radius = 60;
@@ -82,23 +105,72 @@ Page({
   goBack: function() {
     wx.navigateBack();
   },
-  data: {
-    baziResult: '',
-    characterTags: ['稳重', '聪明', '有耐心', '领导力'],
-    wuxingAdvice: [
-      '适合多接触水属性事物',
-      '颜色适合蓝色、黑色',
-      '方向喜北方',
-    ],
+
+  // 计算五行
+  calculateWuxing: function(bazi) {
+    const ganZhi = [
+      bazi.getYearGan() + bazi.getYearZhi(),
+      bazi.getMonthGan() + bazi.getMonthZhi(),
+      bazi.getDayGan() + bazi.getDayZhi(),
+      bazi.getTimeGan() + bazi.getTimeZhi()
+    ];
+
+    const wuxingMap = {
+      '金': ['庚', '辛', '申', '酉'],
+      '木': ['甲', '乙', '寅', '卯'],
+      '水': ['壬', '癸', '亥', '子'],
+      '火': ['丙', '丁', '巳', '午'],
+      '土': ['戊', '己', '辰', '戌', '丑', '未']
+    };
+
+    let counts = { '金': 0, '木': 0, '水': 0, '火': 0, '土': 0 };
+
+    ganZhi.forEach(gz => {
+      for (let w in wuxingMap) {
+        if (wuxingMap[w].some(c => gz.includes(c))) {
+          counts[w]++;
+        }
+      }
+    });
+
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    let percentages = {};
+    for (let w in counts) {
+      percentages[w] = Math.round((counts[w] / total) * 100);
+    }
+    return percentages;
   },
 
-  onLoad(options) {
-    // 接收从首页传来的八字数据
-    if (options.bazi) {
-      this.setData({
-        baziResult: decodeURIComponent(options.bazi)
-      });
-    }
+  // 生成性格标签
+  generateTags: function(bazi, gender) {
+    // 简化逻辑，基于日干生成标签
+    const dayGan = bazi.getDayGan();
+    const tagsMap = {
+      '甲': ['有领导力', '独立', '有毅力'],
+      '乙': ['细腻', '有耐心', '聪明'],
+      '丙': ['热情', '有创造力', '自信'],
+      '丁': ['温柔', '有爱心', '细心'],
+      '戊': ['稳重', '可靠', '有责任心'],
+      '己': ['务实', '勤奋', '有条理'],
+      '庚': ['刚强', '有正义感', '勇敢'],
+      '辛': ['精明', '有洞察力', '独立'],
+      '壬': ['智慧', '有远见', '灵活'],
+      '癸': ['敏感', '有同情心', '适应力强']
+    };
+    return tagsMap[dayGan] || ['稳重', '聪明', '有耐心'];
+  },
+
+  // 生成五行建议
+  generateAdvice: function(wuxing) {
+    const maxWuxing = Object.keys(wuxing).reduce((a, b) => wuxing[a] > wuxing[b] ? a : b);
+    const adviceMap = {
+      '金': ['适合多接触金属性事物', '颜色适合白色、金色', '方向喜西方'],
+      '木': ['适合多接触木属性事物', '颜色适合绿色', '方向喜东方'],
+      '水': ['适合多接触水属性事物', '颜色适合蓝色、黑色', '方向喜北方'],
+      '火': ['适合多接触火属性事物', '颜色适合红色', '方向喜南方'],
+      '土': ['适合多接触土属性事物', '颜色适合黄色、棕色', '方向喜中央']
+    };
+    return adviceMap[maxWuxing] || ['保持平衡'];
   },
 
   // 返回首页

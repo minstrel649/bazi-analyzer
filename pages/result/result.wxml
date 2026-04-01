@@ -4,6 +4,14 @@
     <text class="title">生辰八字分析报告</text>
   </view>
 
+  <!-- 用户输入的生辰 -->
+  <view class="user-input-section">
+    <text class="section-title">您的生辰信息</text>
+    <view class="user-input-display">
+      <text>{{userInputBazi}}</text>
+    </view>
+  </view>
+
   <!-- 八字排盘展示 -->
   <view class="bazi-section">
     <text class="section-title">八字排盘</text>
